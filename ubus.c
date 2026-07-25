@@ -28,6 +28,7 @@
 #include "node.h"
 #include "event.h"
 #include "known.h"
+#include "ssid_config.h"
 
 static struct blob_buf b;
 static KVLIST(host_info, kvlist_blob_len);
@@ -224,7 +225,8 @@ struct cfg_item {
 	_cfg(ARRAY_CB, event_log_types), \
 	_cfg(ARRAY_CB, ssid_list), \
 	_cfg(BOOL, known_stations), \
-	_cfg(U32, known_stations_timeout)
+	_cfg(U32, known_stations_timeout), \
+	_cfg(ARRAY_CB, ssid_configs)
 
 enum cfg_items {
 #define _cfg(_type, _name) CFG_##_name

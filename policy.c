@@ -21,6 +21,7 @@
 #include "node.h"
 #include "event.h"
 #include "known.h"
+#include "ssid_config.h"
 
 static bool
 below_assoc_threshold(struct usteer_node *node_cur, struct usteer_node *node_new)
@@ -34,9 +35,9 @@ below_assoc_threshold(struct usteer_node *node_cur, struct usteer_node *node_new
 		return false;
 
 	if (ref_5g && !node_5g)
-		n_assoc_new += config.band_steering_threshold;
+		n_assoc_new += SSID_CFG(node_cur->ssid, band_steering_threshold);
 	else if (!ref_5g && node_5g)
-		n_assoc_cur += config.band_steering_threshold;
+		n_assoc_cur += SSID_CFG(node_cur->ssid, band_steering_threshold);
 
 	n_assoc_new += config.load_balancing_threshold;
 
@@ -44,12 +45,12 @@ below_assoc_threshold(struct usteer_node *node_cur, struct usteer_node *node_new
 }
 
 static bool
-better_signal_strength(int signal_cur, int signal_new)
+better_signal_strength(const char *ssid, int signal_cur, int signal_new)
 {
-	const bool is_better = signal_new - signal_cur
-				> (int) config.signal_diff_threshold;
+	uint32_t threshold = SSID_CFG(ssid, signal_diff_threshold);
+	const bool is_better = signal_new - signal_cur > (int) threshold;
 
-	if (!config.signal_diff_threshold)
+	if (!threshold)
 		return false;
 
 	return is_better;
@@ -58,8 +59,8 @@ better_signal_strength(int signal_cur, int signal_new)
 static bool
 below_load_threshold(struct usteer_node *node)
 {
-	return node->n_assoc >= config.load_kick_min_clients &&
-	       node->load > config.load_kick_threshold;
+	return node->n_assoc >= SSID_CFG(node->ssid, load_kick_min_clients) &&
+	       node->load > SSID_CFG(node->ssid, load_kick_threshold);
 }
 
 static bool
@@ -77,12 +78,15 @@ usteer_policy_node_below_max_assoc(struct usteer_node *node)
 static bool
 over_min_signal(struct usteer_node *node, int signal)
 {
-	if (config.min_snr && signal < usteer_snr_to_signal(node, config.min_snr))
+	int32_t min_snr = SSID_CFG(node->ssid, min_snr);
+	int32_t roam_trigger_snr = SSID_CFG(node->ssid, roam_trigger_snr);
+
+	if (min_snr && signal < usteer_snr_to_signal(node, min_snr))
 		return false;
 
-	if (config.roam_trigger_snr && signal < usteer_snr_to_signal(node, config.roam_trigger_snr))
+	if (roam_trigger_snr && signal < usteer_snr_to_signal(node, roam_trigger_snr))
 		return false;
-	
+
 	return true;
 }
 
@@ -105,7 +109,7 @@ is_better_candidate(struct sta_info *si_cur, struct sta_info *si_new)
 	    !below_assoc_threshold(new_node, current_node))
 		reasons |= (1 << UEV_SELECT_REASON_NUM_ASSOC);
 
-	if (better_signal_strength(current_signal, new_signal))
+	if (better_signal_strength(current_node->ssid, current_signal, new_signal))
 		reasons |= (1 << UEV_SELECT_REASON_SIGNAL);
 
 	if (has_better_load(current_node, new_node) &&
@@ -116,7 +120,7 @@ is_better_candidate(struct sta_info *si_cur, struct sta_info *si_new)
 }
 
 /*
- * Optional fallback (known_stations): stations that never probe or
+ * Optional fallback (known_stations, per-SSID or global): stations that never probe or
  * report RRM measurements once associated never generate live sta_info
  * data on any node but their current one, so the scan in
  * find_better_candidate() below can never find them a candidate no
@@ -270,6 +274,7 @@ usteer_check_request(struct sta_info *si, enum usteer_event_type type)
 	struct uevent ev = {
 		.si_cur = si,
 	};
+	int32_t min_snr = SSID_CFG(si->node->ssid, min_snr);
 	int min_signal;
 	bool ret = true;
 	bool exploratory;
@@ -286,10 +291,10 @@ usteer_check_request(struct sta_info *si, enum usteer_event_type type)
 		 *
 		 * Otherwise, the client potentially ends up in a assoc - kick loop.
 		 */
-		if (config.min_snr && si->signal < usteer_snr_to_signal(si->node, config.min_snr)) {
+		if (min_snr && si->signal < usteer_snr_to_signal(si->node, min_snr)) {
 			ev.reason = UEV_REASON_LOW_SIGNAL;
 			ev.threshold.cur = si->signal;
-			ev.threshold.ref = usteer_snr_to_signal(si->node, config.min_snr);
+			ev.threshold.ref = usteer_snr_to_signal(si->node, min_snr);
 			ret = false;
 			goto out;
 		} else if (!config.assoc_steering) {
@@ -297,7 +302,7 @@ usteer_check_request(struct sta_info *si, enum usteer_event_type type)
 		}
 	}
 
-	min_signal = usteer_snr_to_signal(si->node, config.min_connect_snr);
+	min_signal = usteer_snr_to_signal(si->node, SSID_CFG(si->node->ssid, min_connect_snr));
 	if (si->signal < min_signal) {
 		ev.reason = UEV_REASON_LOW_SIGNAL;
 		ev.threshold.cur = si->signal;
@@ -390,9 +395,11 @@ usteer_roam_set_state(struct sta_info *si, enum roam_trigger_state state,
 static void
 usteer_roam_sm_start_scan(struct sta_info *si, struct uevent *ev)
 {
+	uint32_t roam_scan_timeout = SSID_CFG(si->node->ssid, roam_scan_timeout);
+
 	/* Start scanning in case we are not timeout-constrained or timeout has expired */
-	if (!config.roam_scan_timeout ||
-	    current_time > si->roam_scan_timeout_start + config.roam_scan_timeout) {
+	if (!roam_scan_timeout ||
+	    current_time > si->roam_scan_timeout_start + roam_scan_timeout) {
 		usteer_roam_set_state(si, ROAM_TRIGGER_SCAN, ev);
 		return;
 	}
@@ -411,7 +418,7 @@ static struct sta_info *
 usteer_roam_sm_found_better_node(struct sta_info *si, struct uevent *ev, enum roam_trigger_state next_state,
 				  bool *exploratory)
 {
-	uint64_t max_age = 2 * config.roam_scan_interval;
+	uint64_t max_age = 2 * SSID_CFG(si->node->ssid, roam_scan_interval);
 	struct sta_info *candidate;
 
 	if (max_age > current_time - si->roam_scan_start)
@@ -431,6 +438,7 @@ usteer_roam_trigger_sm(struct usteer_local_node *ln, struct sta_info *si)
 	uint32_t disassoc_timer;
 	uint32_t validity_period;
 	bool exploratory = false;
+	uint32_t roam_scan_tries = SSID_CFG(si->node->ssid, roam_scan_tries);
 	struct uevent ev = {
 		.si_cur = si,
 	};
@@ -446,12 +454,12 @@ usteer_roam_trigger_sm(struct usteer_local_node *ln, struct sta_info *si)
 			break;
 
 		/* Only scan every scan-interval */
-		if (current_time - si->roam_event < config.roam_scan_interval)
+		if (current_time - si->roam_event < SSID_CFG(si->node->ssid, roam_scan_interval))
 			break;
 
 		/* Check if no node was found within roam_scan_tries tries */
-		if (config.roam_scan_tries && si->roam_tries >= config.roam_scan_tries) {
-			if (!config.roam_scan_timeout) {
+		if (roam_scan_tries && si->roam_tries >= roam_scan_tries) {
+			if (!SSID_CFG(si->node->ssid, roam_scan_timeout)) {
 				usteer_roam_set_state(si, ROAM_TRIGGER_SCAN_DONE, &ev);
 			} else {
 				/* Set timeout until roam_scans are paused */
@@ -498,10 +506,10 @@ usteer_roam_trigger_sm(struct usteer_local_node *ln, struct sta_info *si)
 		 * be force-kicked - that would disconnect a station that may
 		 * still be perfectly happy where it is, on the strength of a
 		 * placeholder reading that was never actually observed. */
-		if (si->sta->aggressiveness >= 2 && !exploratory) {
+		if (si->aggressiveness >= 2 && !exploratory) {
 			if (!si->kick_time)
 				si->kick_time = current_time + config.roam_kick_delay;
-			if (si->sta->aggressiveness >= 3)
+			if (si->aggressiveness >= 3)
 				disassoc_timer = (si->kick_time - current_time) / usteer_local_node_get_beacon_interval(ln);
 			else
 				disassoc_timer = 0;
@@ -528,7 +536,7 @@ bool usteer_policy_can_perform_roam(struct sta_info *si)
 		return false;
 
 	/* Only trigger for STA with active roaming */
-	if (!si->sta->aggressiveness)
+	if (!si->aggressiveness)
 		return false;
 
 	/* Skip on pending kick */
@@ -548,11 +556,11 @@ bool usteer_policy_can_perform_roam(struct sta_info *si)
 		return false;
 
 	/* Skip on previous kick attempt */
-	if (current_time - si->roam_kick < config.roam_trigger_interval)
+	if (current_time - si->roam_kick < SSID_CFG(si->node->ssid, roam_trigger_interval))
 		return false;
 
 	/* Skip if connection is established shorter than the trigger-interval */
-	if (current_time - si->connected_since < config.roam_trigger_interval)
+	if (current_time - si->connected_since < SSID_CFG(si->node->ssid, roam_trigger_interval))
 		return false;
 
 	return true;
@@ -575,12 +583,14 @@ static void
 usteer_local_node_roam_check(struct usteer_local_node *ln, struct uevent *ev)
 {
 	struct sta_info *si;
+	int32_t roam_scan_snr = SSID_CFG(ln->node.ssid, roam_scan_snr);
+	int32_t roam_trigger_snr = SSID_CFG(ln->node.ssid, roam_trigger_snr);
 	int min_signal;
 
-	if (config.roam_scan_snr)
-		min_signal = config.roam_scan_snr;
-	else if (config.roam_trigger_snr)
-		min_signal = config.roam_trigger_snr;
+	if (roam_scan_snr)
+		min_signal = roam_scan_snr;
+	else if (roam_trigger_snr)
+		min_signal = roam_trigger_snr;
 	else
 		return;
 
@@ -605,17 +615,18 @@ usteer_local_node_roam_check(struct usteer_local_node *ln, struct uevent *ev)
 static void
 usteer_local_node_snr_kick(struct usteer_local_node *ln)
 {
-	unsigned int min_count = DIV_ROUND_UP(config.min_snr_kick_delay, config.local_sta_update);
+	int32_t min_snr = SSID_CFG(ln->node.ssid, min_snr);
+	unsigned int min_count = DIV_ROUND_UP(SSID_CFG(ln->node.ssid, min_snr_kick_delay), config.local_sta_update);
 	struct uevent ev = {
 		.node_local = &ln->node,
 	};
 	struct sta_info *si;
 	int min_signal;
 
-	if (!config.min_snr)
+	if (!min_snr)
 		return;
 
-	min_signal = usteer_snr_to_signal(&ln->node, config.min_snr);
+	min_signal = usteer_snr_to_signal(&ln->node, min_snr);
 	ev.threshold.ref = min_signal;
 
 	list_for_each_entry(si, &ln->node.sta_info, node_list) {
@@ -652,20 +663,23 @@ usteer_local_node_load_kick(struct usteer_local_node *ln)
 	struct uevent ev = {
 		.node_local = &ln->node,
 	};
-	unsigned int min_count = DIV_ROUND_UP(config.load_kick_delay, config.local_sta_update);
+	bool load_kick_enabled = SSID_CFG(node->ssid, load_kick_enabled);
+	uint32_t load_kick_threshold = SSID_CFG(node->ssid, load_kick_threshold);
+	uint32_t load_kick_delay = SSID_CFG(node->ssid, load_kick_delay);
+	uint32_t load_kick_min_clients = SSID_CFG(node->ssid, load_kick_min_clients);
+	unsigned int min_count = DIV_ROUND_UP(load_kick_delay, config.local_sta_update);
 
-	if (!config.load_kick_enabled || !config.load_kick_threshold ||
-	    !config.load_kick_delay)
+	if (!load_kick_enabled || !load_kick_threshold || !load_kick_delay)
 		return;
 
-	if (node->load < config.load_kick_threshold) {
+	if (node->load < load_kick_threshold) {
 		if (!ln->load_thr_count)
 			return;
 
 		ln->load_thr_count = 0;
 		ev.type = UEV_LOAD_KICK_RESET;
 		ev.threshold.cur = node->load;
-		ev.threshold.ref = config.load_kick_threshold;
+		ev.threshold.ref = load_kick_threshold;
 		goto out;
 	}
 
@@ -675,15 +689,15 @@ usteer_local_node_load_kick(struct usteer_local_node *ln)
 
 		ev.type = UEV_LOAD_KICK_TRIGGER;
 		ev.threshold.cur = node->load;
-		ev.threshold.ref = config.load_kick_threshold;
+		ev.threshold.ref = load_kick_threshold;
 		goto out;
 	}
 
 	ln->load_thr_count = 0;
-	if (node->n_assoc < config.load_kick_min_clients) {
+	if (node->n_assoc < load_kick_min_clients) {
 		ev.type = UEV_LOAD_KICK_MIN_CLIENTS;
 		ev.threshold.cur = node->n_assoc;
-		ev.threshold.ref = config.load_kick_min_clients;
+		ev.threshold.ref = load_kick_min_clients;
 		goto out;
 	}
 
@@ -721,7 +735,7 @@ usteer_local_node_load_kick(struct usteer_local_node *ln)
 	ev.si_other = candidate;
 	ev.count = kick1->kick_count;
 
-	usteer_ubus_kick_client(kick1, config.load_kick_reason_code);
+	usteer_ubus_kick_client(kick1, SSID_CFG(node->ssid, load_kick_reason_code));
 
 out:
 	usteer_event(&ev);

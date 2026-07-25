@@ -255,6 +255,12 @@ struct sta_info {
 	struct usteer_node *node;
 	struct sta *sta;
 
+	/* Computed from this node's SSID (see usteer_sta_update_aggressiveness()
+	 * in sta.c) - lives here rather than on struct sta because a station
+	 * seen on multiple SSIDs must use each SSID's own aggressiveness for
+	 * decisions made on that SSID's nodes. */
+	uint32_t aggressiveness;
+
 	struct usteer_timeout timeout;
 
 	struct sta_info_stats stats[__EVENT_TYPE_MAX];
@@ -306,8 +312,6 @@ struct sta {
 
 	uint8_t seen_2ghz : 1;
 	uint8_t seen_5ghz : 1;
-
-	uint32_t aggressiveness;
 
 	uint8_t addr[6];
 };
