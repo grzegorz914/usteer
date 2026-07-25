@@ -30,6 +30,7 @@
 #include <libubox/blobmsg_json.h>
 #include "usteer.h"
 #include "node.h"
+#include "known.h"
 
 AVL_TREE(local_nodes, avl_strcmp, false, NULL);
 static struct blob_buf b;
@@ -72,6 +73,7 @@ usteer_free_node(struct ubus_context *ctx, struct usteer_local_node *ln)
 	usteer_local_node_state_reset(ln);
 	usteer_sta_node_cleanup(&ln->node);
 	usteer_measurement_report_node_cleanup(&ln->node);
+	usteer_known_node_free(&ln->node);
 	uloop_timeout_cancel(&ln->update);
 	uloop_timeout_cancel(&ln->bss_tm_queries_timeout);
 	avl_delete(&local_nodes, &ln->node.avl);
@@ -783,6 +785,7 @@ usteer_get_node(struct ubus_context *ctx, const char *name)
 	kvlist_init(&ln->node_info, kvlist_blob_len);
 	INIT_LIST_HEAD(&node->sta_info);
 	INIT_LIST_HEAD(&node->measurements);
+	usteer_known_node_init(node, name);
 
 	ln->bss_tm_queries_timeout.cb = usteer_local_node_process_bss_tm_queries;
 	INIT_LIST_HEAD(&ln->bss_tm_queries);

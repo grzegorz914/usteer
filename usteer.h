@@ -89,6 +89,9 @@ struct usteer_node {
 	char ssid[33];
 	uint8_t bssid[6];
 
+	struct list_head known_sta;
+	char *known_name;
+
 	bool disabled;
 	int freq;
 	int channel;
@@ -219,6 +222,9 @@ struct usteer_config {
 	uint32_t event_log_mask;
 
 	struct blob_attr *ssid_list;
+
+	bool known_stations;
+	uint32_t known_stations_timeout;
 };
 
 struct usteer_bss_tm_query {
@@ -387,6 +393,7 @@ void usteer_node_set_blob(struct blob_attr **dest, struct blob_attr *val);
 struct usteer_local_node *usteer_local_node_by_bssid(uint8_t *bssid);
 struct usteer_remote_node *usteer_remote_node_by_bssid(uint8_t *bssid);
 struct usteer_node *usteer_node_by_bssid(uint8_t *bssid);
+struct usteer_node *usteer_node_by_name(const char *name);
 
 struct usteer_node *usteer_node_get_next_neighbor(struct usteer_node *current_node, struct usteer_node *last);
 bool usteer_check_request(struct sta_info *si, enum usteer_event_type type);

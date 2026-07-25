@@ -20,6 +20,7 @@
 #include "usteer.h"
 #include "node.h"
 #include "event.h"
+#include "known.h"
 
 static bool
 below_assoc_threshold(struct usteer_node *node_cur, struct usteer_node *node_new)
@@ -114,12 +115,102 @@ is_better_candidate(struct sta_info *si_cur, struct sta_info *si_new)
 	return reasons;
 }
 
+/*
+ * Optional fallback (known_stations): stations that never probe or
+ * report RRM measurements once associated never generate live sta_info
+ * data on any node but their current one, so the scan in
+ * find_better_candidate() below can never find them a candidate no
+ * matter how bad their signal gets. Consult the persisted
+ * best-signal-ever-seen record instead.
+ *
+ * A node only ever has known-station data if it is a local node, or a
+ * remote node that is currently, actively broadcasting on the usteer
+ * remote protocol (see remote.c) - a peer that stops sending updates has
+ * its remote node, and with it its known-station list, removed by the
+ * existing remote_node_timeout logic. So this can never point a station
+ * towards a peer that isn't confirmed alive right now.
+ */
 static struct sta_info *
-find_better_candidate(struct sta_info *si_ref, struct uevent *ev, uint32_t required_criteria, uint64_t max_age)
+find_known_candidate(struct sta_info *si_ref, struct uevent *ev)
+{
+	struct sta_info *si, *candidate = NULL;
+	struct usteer_remote_node *rn;
+	struct usteer_node *node;
+	struct usteer_known_sta *ks;
+	uint32_t reasons;
+	bool create;
+
+	if (!config.known_stations)
+		return NULL;
+
+	for_each_local_node(node) {
+		if (node == si_ref->node ||
+		    strcmp(node->ssid, si_ref->node->ssid) != 0)
+			continue;
+
+		ks = usteer_known_find(node, si_ref->sta->addr);
+		if (!ks)
+			continue;
+
+		si = usteer_sta_info_get(si_ref->sta, node, &create);
+		if (!si)
+			continue;
+		si->signal = ks->signal;
+
+		reasons = is_better_candidate(si_ref, si);
+		if (!(reasons & (1 << UEV_SELECT_REASON_SIGNAL)))
+			continue;
+
+		if (candidate && si->signal <= candidate->signal)
+			continue;
+
+		candidate = si;
+		if (ev) {
+			ev->si_other = si;
+			ev->select_reasons = reasons;
+		}
+	}
+
+	for_each_remote_node(rn) {
+		node = &rn->node;
+		if (strcmp(node->ssid, si_ref->node->ssid) != 0)
+			continue;
+
+		ks = usteer_known_find(node, si_ref->sta->addr);
+		if (!ks)
+			continue;
+
+		si = usteer_sta_info_get(si_ref->sta, node, &create);
+		if (!si)
+			continue;
+		si->signal = ks->signal;
+
+		reasons = is_better_candidate(si_ref, si);
+		if (!(reasons & (1 << UEV_SELECT_REASON_SIGNAL)))
+			continue;
+
+		if (candidate && si->signal <= candidate->signal)
+			continue;
+
+		candidate = si;
+		if (ev) {
+			ev->si_other = si;
+			ev->select_reasons = reasons;
+		}
+	}
+
+	return candidate;
+}
+
+static struct sta_info *
+find_better_candidate(struct sta_info *si_ref, struct uevent *ev, uint32_t required_criteria, uint64_t max_age, bool *exploratory)
 {
 	struct sta_info *si, *candidate = NULL;
 	struct sta *sta = si_ref->sta;
 	uint32_t reasons;
+
+	if (exploratory)
+		*exploratory = false;
 
 	list_for_each_entry(si, &sta->nodes, list) {
 		if (si == si_ref)
@@ -150,6 +241,12 @@ find_better_candidate(struct sta_info *si_ref, struct uevent *ev, uint32_t requi
 			candidate = si;
 	}
 
+	if (!candidate && (required_criteria & (1 << UEV_SELECT_REASON_SIGNAL))) {
+		candidate = find_known_candidate(si_ref, ev);
+		if (candidate && exploratory)
+			*exploratory = true;
+	}
+
 	return candidate;
 }
 
@@ -175,6 +272,7 @@ usteer_check_request(struct sta_info *si, enum usteer_event_type type)
 	};
 	int min_signal;
 	bool ret = true;
+	bool exploratory;
 
 	if (type == EVENT_TYPE_PROBE && !config.probe_steering)
 		goto out;
@@ -216,7 +314,14 @@ usteer_check_request(struct sta_info *si, enum usteer_event_type type)
 		goto out;
 	}
 
-	if (!find_better_candidate(si, &ev, UEV_SELECT_REASON_ALL, 0))
+	/* A candidate found only via the known-devices fallback (signal
+	 * never actually observed on that node, just a "worth exploring"
+	 * placeholder - see find_known_candidate()) must never be grounds
+	 * to reject a probe/assoc request outright: this station may have
+	 * no better option right now, and rejecting on a pure guess risks
+	 * an assoc-reject loop instead of just a missed steering
+	 * opportunity. */
+	if (!find_better_candidate(si, &ev, UEV_SELECT_REASON_ALL, 0, &exploratory) || exploratory)
 		goto out;
 
 	ev.reason = UEV_REASON_BETTER_CANDIDATE;
@@ -303,7 +408,8 @@ usteer_roam_sm_start_scan(struct sta_info *si, struct uevent *ev)
 }
 
 static struct sta_info *
-usteer_roam_sm_found_better_node(struct sta_info *si, struct uevent *ev, enum roam_trigger_state next_state)
+usteer_roam_sm_found_better_node(struct sta_info *si, struct uevent *ev, enum roam_trigger_state next_state,
+				  bool *exploratory)
 {
 	uint64_t max_age = 2 * config.roam_scan_interval;
 	struct sta_info *candidate;
@@ -311,7 +417,7 @@ usteer_roam_sm_found_better_node(struct sta_info *si, struct uevent *ev, enum ro
 	if (max_age > current_time - si->roam_scan_start)
 		max_age = current_time - si->roam_scan_start;
 
-	candidate = find_better_candidate(si, ev, (1 << UEV_SELECT_REASON_SIGNAL), max_age);
+	candidate = find_better_candidate(si, ev, (1 << UEV_SELECT_REASON_SIGNAL), max_age, exploratory);
 	if (candidate)
 		usteer_roam_set_state(si, next_state, ev);
 
@@ -324,6 +430,7 @@ usteer_roam_trigger_sm(struct usteer_local_node *ln, struct sta_info *si)
 	struct sta_info *candidate;
 	uint32_t disassoc_timer;
 	uint32_t validity_period;
+	bool exploratory = false;
 	struct uevent ev = {
 		.si_cur = si,
 	};
@@ -335,7 +442,7 @@ usteer_roam_trigger_sm(struct usteer_local_node *ln, struct sta_info *si)
 		}
 
 		/* Check if we've found a better node regardless of the scan-interval */
-		if (usteer_roam_sm_found_better_node(si, &ev, ROAM_TRIGGER_SCAN_DONE))
+		if (usteer_roam_sm_found_better_node(si, &ev, ROAM_TRIGGER_SCAN_DONE, NULL))
 			break;
 
 		/* Only scan every scan-interval */
@@ -371,7 +478,7 @@ usteer_roam_trigger_sm(struct usteer_local_node *ln, struct sta_info *si)
 			break;
 		}
 
-		candidate = usteer_roam_sm_found_better_node(si, &ev, ROAM_TRIGGER_SCAN_DONE);
+		candidate = usteer_roam_sm_found_better_node(si, &ev, ROAM_TRIGGER_SCAN_DONE, &exploratory);
 		/* Kick back in case no better node is found */
 		if (!candidate) {
 			usteer_roam_set_state(si, ROAM_TRIGGER_IDLE, &ev);
@@ -385,7 +492,13 @@ usteer_roam_trigger_sm(struct usteer_local_node *ln, struct sta_info *si)
 			si->roam_transition_start = current_time;
 		si->roam_transition_request_validity_end = current_time + 10000;
 		validity_period = 10000 / usteer_local_node_get_beacon_interval(ln); /* ~ 10 seconds */
-		if (si->sta->aggressiveness >= 2) {
+		/* A candidate from the known-devices fallback (see
+		 * find_known_candidate()) is a guess, not a confirmed better
+		 * signal: the client is free to ignore it, and it must never
+		 * be force-kicked - that would disconnect a station that may
+		 * still be perfectly happy where it is, on the strength of a
+		 * placeholder reading that was never actually observed. */
+		if (si->sta->aggressiveness >= 2 && !exploratory) {
 			if (!si->kick_time)
 				si->kick_time = current_time + config.roam_kick_delay;
 			if (si->sta->aggressiveness >= 3)
@@ -583,7 +696,7 @@ usteer_local_node_load_kick(struct usteer_local_node *ln)
 		if (is_more_kickable(kick1, si))
 			kick1 = si;
 
-		tmp = find_better_candidate(si, NULL, (1 << UEV_SELECT_REASON_LOAD), 0);
+		tmp = find_better_candidate(si, NULL, (1 << UEV_SELECT_REASON_LOAD), 0, NULL);
 		if (!tmp)
 			continue;
 
