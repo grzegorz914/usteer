@@ -52,6 +52,7 @@ struct usteer_ssid_config {
 	struct blob_attr *aggressiveness_mac_list;
 
 	uint32_t band_steering_threshold;
+	bool band_steering_enabled;
 	uint32_t band_steering_interval;
 	int32_t band_steering_min_snr;
 	uint32_t band_steering_signal_threshold;

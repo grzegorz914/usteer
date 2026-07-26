@@ -217,6 +217,7 @@ struct cfg_item {
 	_cfg(U32, load_kick_delay), \
 	_cfg(U32, load_kick_min_clients), \
 	_cfg(U32, load_kick_reason_code), \
+	_cfg(BOOL, band_steering_enabled), \
 	_cfg(U32, band_steering_interval), \
 	_cfg(I32, band_steering_min_snr), \
 	_cfg(U32, link_measurement_interval), \
