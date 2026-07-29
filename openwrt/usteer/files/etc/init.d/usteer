@@ -116,7 +116,7 @@ uci_usteer_ssid() {
 	uci_option_to_json_string "$cfg" node_up_script
 
 	for opt in \
-		sta_block_timeout local_sta_timeout \
+		sta_block_timeout local_sta_timeout local_sta_update \
 		max_retry_band seen_policy_timeout \
 		max_neighbor_reports \
 		load_balancing_threshold \

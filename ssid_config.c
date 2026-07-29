@@ -49,6 +49,7 @@ enum {
 	SCFG_SSID,
 	SCFG_STA_BLOCK_TIMEOUT,
 	SCFG_LOCAL_STA_TIMEOUT,
+	SCFG_LOCAL_STA_UPDATE,
 	SCFG_MAX_RETRY_BAND,
 	SCFG_SEEN_POLICY_TIMEOUT,
 	SCFG_ASSOC_STEERING,
@@ -89,6 +90,7 @@ static const struct blobmsg_policy ssid_cfg_policy[__SCFG_MAX] = {
 	[SCFG_SSID] = { "ssid", BLOBMSG_TYPE_STRING },
 	[SCFG_STA_BLOCK_TIMEOUT] = { "sta_block_timeout", BLOBMSG_TYPE_INT32 },
 	[SCFG_LOCAL_STA_TIMEOUT] = { "local_sta_timeout", BLOBMSG_TYPE_INT32 },
+	[SCFG_LOCAL_STA_UPDATE] = { "local_sta_update", BLOBMSG_TYPE_INT32 },
 	[SCFG_MAX_RETRY_BAND] = { "max_retry_band", BLOBMSG_TYPE_INT32 },
 	[SCFG_SEEN_POLICY_TIMEOUT] = { "seen_policy_timeout", BLOBMSG_TYPE_INT32 },
 	[SCFG_ASSOC_STEERING] = { "assoc_steering", BLOBMSG_TYPE_BOOL },
@@ -166,6 +168,7 @@ void config_set_ssid_configs(struct blob_attr *data)
 
 		SCFG_INT(sc, tb, sta_block_timeout, SCFG_STA_BLOCK_TIMEOUT);
 		SCFG_INT(sc, tb, local_sta_timeout, SCFG_LOCAL_STA_TIMEOUT);
+		SCFG_INT(sc, tb, local_sta_update, SCFG_LOCAL_STA_UPDATE);
 		SCFG_INT(sc, tb, max_retry_band, SCFG_MAX_RETRY_BAND);
 		SCFG_INT(sc, tb, seen_policy_timeout, SCFG_SEEN_POLICY_TIMEOUT);
 		SCFG_BOOL(sc, tb, assoc_steering, SCFG_ASSOC_STEERING);
@@ -220,6 +223,7 @@ void config_get_ssid_configs(struct blob_buf *buf)
 		blobmsg_add_string(buf, "ssid", sc->avl.key);
 		blobmsg_add_u32(buf, "sta_block_timeout", sc->sta_block_timeout);
 		blobmsg_add_u32(buf, "local_sta_timeout", sc->local_sta_timeout);
+		blobmsg_add_u32(buf, "local_sta_update", sc->local_sta_update);
 		blobmsg_add_u32(buf, "max_retry_band", sc->max_retry_band);
 		blobmsg_add_u32(buf, "seen_policy_timeout", sc->seen_policy_timeout);
 		blobmsg_add_u8(buf, "assoc_steering", sc->assoc_steering);

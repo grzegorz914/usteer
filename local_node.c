@@ -682,11 +682,12 @@ usteer_local_node_state_next(struct uloop_timeout *timeout)
 static void
 usteer_local_node_request_link_measurement(struct usteer_local_node *ln)
 {
-	unsigned int min_count = DIV_ROUND_UP(config.link_measurement_interval, config.local_sta_update);
 	struct usteer_node *node;
 	struct sta_info *si;
 
 	node = &ln->node;
+
+	unsigned int min_count = DIV_ROUND_UP(config.link_measurement_interval, SSID_CFG(node->ssid, local_sta_update));
 
 	if (ln->link_measurement_tries < min_count) {
 		ln->link_measurement_tries++;
@@ -729,7 +730,7 @@ usteer_local_node_update(struct uloop_timeout *timeout)
 	usteer_band_steering_perform_steer(ln);
 	usteer_local_node_request_link_measurement(ln);
 
-	uloop_timeout_set(timeout, config.local_sta_update);
+	uloop_timeout_set(timeout, SSID_CFG(node->ssid, local_sta_update));
 }
 
 static void

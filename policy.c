@@ -619,7 +619,7 @@ static void
 usteer_local_node_snr_kick(struct usteer_local_node *ln)
 {
 	int32_t min_snr = SSID_CFG(ln->node.ssid, min_snr);
-	unsigned int min_count = DIV_ROUND_UP(SSID_CFG(ln->node.ssid, min_snr_kick_delay), config.local_sta_update);
+	unsigned int min_count = DIV_ROUND_UP(SSID_CFG(ln->node.ssid, min_snr_kick_delay), SSID_CFG(ln->node.ssid, local_sta_update));
 	struct uevent ev = {
 		.node_local = &ln->node,
 	};
@@ -670,7 +670,7 @@ usteer_local_node_load_kick(struct usteer_local_node *ln)
 	uint32_t load_kick_threshold = SSID_CFG(node->ssid, load_kick_threshold);
 	uint32_t load_kick_delay = SSID_CFG(node->ssid, load_kick_delay);
 	uint32_t load_kick_min_clients = SSID_CFG(node->ssid, load_kick_min_clients);
-	unsigned int min_count = DIV_ROUND_UP(load_kick_delay, config.local_sta_update);
+	unsigned int min_count = DIV_ROUND_UP(load_kick_delay, SSID_CFG(node->ssid, local_sta_update));
 
 	if (!load_kick_enabled || !load_kick_threshold || !load_kick_delay)
 		return;

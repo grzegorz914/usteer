@@ -38,6 +38,7 @@ struct usteer_ssid_config {
 	/* Field order mirrors struct usteer_config's declaration order. */
 	uint32_t sta_block_timeout;
 	uint32_t local_sta_timeout;
+	uint32_t local_sta_update;
 
 	uint32_t max_retry_band;
 	uint32_t seen_policy_timeout;
