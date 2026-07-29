@@ -31,6 +31,7 @@
 #include "usteer.h"
 #include "node.h"
 #include "known.h"
+#include "ssid_config.h"
 
 AVL_TREE(local_nodes, avl_strcmp, false, NULL);
 static struct blob_buf b;
@@ -377,7 +378,7 @@ usteer_local_node_assoc_update(struct sta_info *si, struct blob_attr *data)
 				if (!remote_si)
 					continue;
 
-				if (current_time - remote_si->last_connected < config.roam_process_timeout) {
+				if (current_time - remote_si->last_connected < SSID_CFG(si->node->ssid, roam_process_timeout)) {
 					rn->node.roam_events.source++;
 					/* Don't abort looking for roam sources here.
 					 * The client might have roamed via another node
@@ -614,15 +615,17 @@ usteer_local_node_prepare_rrm_set(struct usteer_local_node *ln)
 	int i = 0;
 	void *c;
 
+	uint32_t max_neighbor_reports = SSID_CFG(ln->node.ssid, max_neighbor_reports);
+
 	c = blobmsg_open_array(&b, "list");
 	for_each_local_node(node) {
-		if (i >= config.max_neighbor_reports)
+		if (i >= max_neighbor_reports)
 			break;
 		if (usteer_add_rrm_data(ln, node))
 			i++;
 	}
 
-	while (i < config.max_neighbor_reports) {
+	while (i < max_neighbor_reports) {
 		node = usteer_node_get_next_neighbor(&ln->node, last_remote_neighbor);
 		if (!node) {
 			/* No more nodes available */
@@ -796,13 +799,18 @@ static void
 usteer_node_run_update_script(struct usteer_node *node)
 {
 	struct usteer_local_node *ln = container_of(node, struct usteer_local_node, node);
+	/* Not a plain SSID_CFG() lookup: the global fallback here is the
+	 * node_up_script static above, not config.node_up_script (dead
+	 * field) - see the comment on usteer_ssid_config.node_up_script. */
+	struct usteer_ssid_config *sc = usteer_ssid_config_get(node->ssid);
+	const char *script = (sc && sc->node_up_script) ? sc->node_up_script : node_up_script;
 	char *val;
 
-	if (!node_up_script)
+	if (!script)
 		return;
 
-	val = alloca(strlen(node_up_script) + strlen(ln->iface) + 8);
-	sprintf(val, "%s '%s'", node_up_script, ln->iface);
+	val = alloca(strlen(script) + strlen(ln->iface) + 8);
+	sprintf(val, "%s '%s'", script, ln->iface);
 	if (system(val))
 		MSG(INFO, "failed to execute %s\n", val);
 }

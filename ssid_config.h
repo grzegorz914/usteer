@@ -35,12 +35,34 @@
 struct usteer_ssid_config {
 	struct avl_node avl; /* key: heap-allocated copy of the SSID string */
 
+	/* Field order mirrors struct usteer_config's declaration order. */
+	uint32_t sta_block_timeout;
+	uint32_t local_sta_timeout;
+
+	uint32_t max_retry_band;
+	uint32_t seen_policy_timeout;
+
+	bool assoc_steering;
+	bool probe_steering;
+
+	uint32_t max_neighbor_reports;
+
+	uint32_t band_steering_threshold;
+	uint32_t load_balancing_threshold;
+
+	uint32_t aggressiveness;
+	struct blob_attr *aggressiveness_mac_list;
+
 	int32_t min_snr;
 	uint32_t min_snr_kick_delay;
 	int32_t min_connect_snr;
 	uint32_t signal_diff_threshold;
 
+	uint32_t steer_reject_timeout;
+
 	int32_t roam_scan_snr;
+	uint32_t roam_process_timeout;
+
 	uint32_t roam_scan_tries;
 	uint32_t roam_scan_timeout;
 	uint32_t roam_scan_interval;
@@ -48,20 +70,29 @@ struct usteer_ssid_config {
 	int32_t roam_trigger_snr;
 	uint32_t roam_trigger_interval;
 
-	uint32_t aggressiveness;
-	struct blob_attr *aggressiveness_mac_list;
+	uint32_t roam_kick_delay;
 
-	uint32_t band_steering_threshold;
 	bool band_steering_enabled;
 	uint32_t band_steering_interval;
 	int32_t band_steering_min_snr;
 	uint32_t band_steering_signal_threshold;
+
+	uint32_t initial_connect_delay;
 
 	bool load_kick_enabled;
 	uint32_t load_kick_threshold;
 	uint32_t load_kick_delay;
 	uint32_t load_kick_min_clients;
 	uint32_t load_kick_reason_code;
+
+	/* NULL if unset - unlike every other field here, the global
+	 * fallback for this one is NOT config.node_up_script (that struct
+	 * field is dead; the real global value is a private static in
+	 * local_node.c, set via config_set_node_up_script()), so callers
+	 * can't use the SSID_CFG() macro for it and must fall back to that
+	 * global manually - see usteer_local_node_up_script_run() call
+	 * sites. */
+	char *node_up_script;
 };
 
 extern struct avl_tree ssid_configs;

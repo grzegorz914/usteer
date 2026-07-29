@@ -698,10 +698,11 @@ usteer_ubus_disassoc_add_neighbors(struct sta_info *si)
 	struct usteer_node *node, *last_remote_neighbor = NULL;
 	int i = 0;
 	void *c;
+	uint32_t max_neighbor_reports = SSID_CFG(si->node->ssid, max_neighbor_reports);
 
 	c = blobmsg_open_array(&b, "neighbors");
 	for_each_local_node(node) {
-		if (i >= config.max_neighbor_reports)
+		if (i >= max_neighbor_reports)
 			break;
 		if (si->node == node)
 			continue;
@@ -709,7 +710,7 @@ usteer_ubus_disassoc_add_neighbors(struct sta_info *si)
 			i++;
 	}
 
-	while (i < config.max_neighbor_reports) {
+	while (i < max_neighbor_reports) {
 		node = usteer_node_get_next_neighbor(si->node, last_remote_neighbor);
 		if (!node) {
 			/* No more nodes available */

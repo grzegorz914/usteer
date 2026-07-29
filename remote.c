@@ -34,6 +34,7 @@
 #include "remote.h"
 #include "node.h"
 #include "known.h"
+#include "ssid_config.h"
 
 static uint32_t local_id;
 static struct uloop_fd remote_fd;
@@ -193,7 +194,7 @@ interface_add_station(struct usteer_remote_node *node, struct blob_attr *data)
 			if (!local_si)
 				continue;
 
-			if (current_time - local_si->last_connected < config.roam_process_timeout) {
+			if (current_time - local_si->last_connected < SSID_CFG(si->node->ssid, roam_process_timeout)) {
 				node->node.roam_events.target++;
 				break;
 			}
@@ -596,7 +597,7 @@ static void usteer_send_sta_info(struct sta_info *sta)
 	blob_put_int32(&buf, APMSG_STA_SIGNAL, sta->signal);
 	blob_put_int32(&buf, APMSG_STA_SEEN, seen);
 	blob_put_int32(&buf, APMSG_STA_LAST_CONNECTED, last_connected);
-	blob_put_int32(&buf, APMSG_STA_TIMEOUT, config.local_sta_timeout - seen);
+	blob_put_int32(&buf, APMSG_STA_TIMEOUT, SSID_CFG(sta->node->ssid, local_sta_timeout) - seen);
 	blob_nest_end(&buf, c);
 }
 

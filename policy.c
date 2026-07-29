@@ -31,7 +31,9 @@ below_assoc_threshold(struct usteer_node *node_cur, struct usteer_node *node_new
 	bool ref_5g = node_cur->freq > 4000;
 	bool node_5g = node_new->freq > 4000;
 
-	if (!config.load_balancing_threshold)
+	uint32_t load_balancing_threshold = SSID_CFG(node_cur->ssid, load_balancing_threshold);
+
+	if (!load_balancing_threshold)
 		return false;
 
 	if (ref_5g && !node_5g)
@@ -39,7 +41,7 @@ below_assoc_threshold(struct usteer_node *node_cur, struct usteer_node *node_new
 	else if (!ref_5g && node_5g)
 		n_assoc_cur += SSID_CFG(node_cur->ssid, band_steering_threshold);
 
-	n_assoc_new += config.load_balancing_threshold;
+	n_assoc_new += load_balancing_threshold;
 
 	return n_assoc_new <= n_assoc_cur;
 }
@@ -220,7 +222,7 @@ find_better_candidate(struct sta_info *si_ref, struct uevent *ev, uint32_t requi
 		if (si == si_ref)
 			continue;
 
-		if (current_time - si->seen > config.seen_policy_timeout)
+		if (current_time - si->seen > SSID_CFG(si_ref->node->ssid, seen_policy_timeout))
 			continue;
 
 		if (strcmp(si->node->ssid, si_ref->node->ssid) != 0)
@@ -279,7 +281,7 @@ usteer_check_request(struct sta_info *si, enum usteer_event_type type)
 	bool ret = true;
 	bool exploratory;
 
-	if (type == EVENT_TYPE_PROBE && !config.probe_steering)
+	if (type == EVENT_TYPE_PROBE && !SSID_CFG(si->node->ssid, probe_steering))
 		goto out;
 
 	if (type == EVENT_TYPE_AUTH)
@@ -297,7 +299,7 @@ usteer_check_request(struct sta_info *si, enum usteer_event_type type)
 			ev.threshold.ref = usteer_snr_to_signal(si->node, min_snr);
 			ret = false;
 			goto out;
-		} else if (!config.assoc_steering) {
+		} else if (!SSID_CFG(si->node->ssid, assoc_steering)) {
 			goto out;
 		}
 	}
@@ -311,10 +313,11 @@ usteer_check_request(struct sta_info *si, enum usteer_event_type type)
 		goto out;
 	}
 
-	if (current_time - si->created < config.initial_connect_delay) {
+	uint32_t initial_connect_delay = SSID_CFG(si->node->ssid, initial_connect_delay);
+	if (current_time - si->created < initial_connect_delay) {
 		ev.reason = UEV_REASON_CONNECT_DELAY;
 		ev.threshold.cur = current_time - si->created;
-		ev.threshold.ref = config.initial_connect_delay;
+		ev.threshold.ref = initial_connect_delay;
 		ret = false;
 		goto out;
 	}
@@ -348,10 +351,10 @@ out:
 		break;
 	}
 
-	if (!ret && si->stats[type].blocked_cur >= config.max_retry_band) {
+	if (!ret && si->stats[type].blocked_cur >= SSID_CFG(si->node->ssid, max_retry_band)) {
 		ev.reason = UEV_REASON_RETRY_EXCEEDED;
 		ev.threshold.cur = si->stats[type].blocked_cur;
-		ev.threshold.ref = config.max_retry_band;
+		ev.threshold.ref = SSID_CFG(si->node->ssid, max_retry_band);
 	}
 	usteer_event(&ev);
 
@@ -480,7 +483,7 @@ usteer_roam_trigger_sm(struct usteer_local_node *ln, struct sta_info *si)
 
 	case ROAM_TRIGGER_SCAN_DONE:
 		/* Roaming time over, switch back to ROAM_TRIGGER_IDLE */
-		if (si->roam_transition_start && current_time - si->roam_transition_start > config.roam_kick_delay) {
+		if (si->roam_transition_start && current_time - si->roam_transition_start > SSID_CFG(si->node->ssid, roam_kick_delay)) {
 			si->roam_transition_start = 0;
 			usteer_roam_set_state(si, ROAM_TRIGGER_IDLE, &ev);
 			break;
@@ -508,7 +511,7 @@ usteer_roam_trigger_sm(struct usteer_local_node *ln, struct sta_info *si)
 		 * placeholder reading that was never actually observed. */
 		if (si->aggressiveness >= 2 && !exploratory) {
 			if (!si->kick_time)
-				si->kick_time = current_time + config.roam_kick_delay;
+				si->kick_time = current_time + SSID_CFG(si->node->ssid, roam_kick_delay);
 			if (si->aggressiveness >= 3)
 				disassoc_timer = (si->kick_time - current_time) / usteer_local_node_get_beacon_interval(ln);
 			else
@@ -548,11 +551,11 @@ bool usteer_policy_can_perform_roam(struct sta_info *si)
 		return false;
 
 	/* Skip on rejected transition */
-	if (si->bss_transition_response.status_code && current_time - si->bss_transition_response.timestamp < config.steer_reject_timeout)
+	if (si->bss_transition_response.status_code && current_time - si->bss_transition_response.timestamp < SSID_CFG(si->node->ssid, steer_reject_timeout))
 		return false;
 
 	/* Skip if transition accepted */
-	if (!si->bss_transition_response.status_code && current_time - si->bss_transition_response.timestamp < config.roam_kick_delay)
+	if (!si->bss_transition_response.status_code && current_time - si->bss_transition_response.timestamp < SSID_CFG(si->node->ssid, roam_kick_delay))
 		return false;
 
 	/* Skip on previous kick attempt */

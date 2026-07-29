@@ -130,7 +130,7 @@ void usteer_band_steering_perform_steer(struct usteer_local_node *ln)
 			validity_period = 10000 / usteer_local_node_get_beacon_interval(ln); /* ~ 10 seconds */
 			if (si->aggressiveness >= 2) {
 				if (!si->kick_time)
-					si->kick_time = current_time + config.roam_kick_delay;
+					si->kick_time = current_time + SSID_CFG(si->node->ssid, roam_kick_delay);
 				if (si->aggressiveness >= 3)
 					disassoc_timer = (si->kick_time - current_time) / usteer_local_node_get_beacon_interval(ln);
 				else

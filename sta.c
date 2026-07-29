@@ -180,7 +180,7 @@ void usteer_sta_disconnected(struct sta_info *si)
 	si->connected = STA_NOT_CONNECTED;
 	si->kick_time = 0;
 	si->connected_since = 0;
-	usteer_sta_info_update_timeout(si, config.local_sta_timeout);
+	usteer_sta_info_update_timeout(si, SSID_CFG(si->node->ssid, local_sta_timeout));
 }
 
 void
@@ -217,7 +217,7 @@ usteer_sta_info_update(struct sta_info *si, int signal, bool avg)
 	else
 		si->sta->seen_5ghz = 1;
 
-	usteer_sta_info_update_timeout(si, config.local_sta_timeout);
+	usteer_sta_info_update_timeout(si, SSID_CFG(si->node->ssid, local_sta_timeout));
 }
 
 bool
@@ -239,7 +239,7 @@ usteer_handle_sta_event(struct usteer_node *node, const uint8_t *addr,
 	si->stats[type].requests++;
 
 	diff = si->stats[type].blocked_last_time - current_time;
-	if (diff > config.sta_block_timeout)
+	if (diff > SSID_CFG(node->ssid, sta_block_timeout))
 		si->stats[type].blocked_cur = 0;
 
 	ret = usteer_check_request(si, type);
