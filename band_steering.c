@@ -91,7 +91,7 @@ void usteer_band_steering_perform_steer(struct usteer_local_node *ln)
 	uint32_t disassoc_timer;
 	uint32_t validity_period;
 
-	if (!band_steering_enabled || !band_steering_interval)
+	if (!band_steering_enabled)
 		return;
 
 	/* Band-Steering is only available on 2.4 GHz interfaces */
