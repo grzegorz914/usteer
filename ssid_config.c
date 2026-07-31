@@ -72,7 +72,6 @@ enum {
 	SCFG_ROAM_TRIGGER_SNR,
 	SCFG_ROAM_TRIGGER_INTERVAL,
 	SCFG_ROAM_KICK_DELAY,
-	SCFG_BAND_STEERING_ENABLED,
 	SCFG_BAND_STEERING_INTERVAL,
 	SCFG_BAND_STEERING_MIN_SNR,
 	SCFG_BAND_STEERING_SIGNAL_THRESHOLD,
@@ -113,7 +112,6 @@ static const struct blobmsg_policy ssid_cfg_policy[__SCFG_MAX] = {
 	[SCFG_ROAM_TRIGGER_SNR] = { "roam_trigger_snr", BLOBMSG_TYPE_INT32 },
 	[SCFG_ROAM_TRIGGER_INTERVAL] = { "roam_trigger_interval", BLOBMSG_TYPE_INT32 },
 	[SCFG_ROAM_KICK_DELAY] = { "roam_kick_delay", BLOBMSG_TYPE_INT32 },
-	[SCFG_BAND_STEERING_ENABLED] = { "band_steering_enabled", BLOBMSG_TYPE_BOOL },
 	[SCFG_BAND_STEERING_INTERVAL] = { "band_steering_interval", BLOBMSG_TYPE_INT32 },
 	[SCFG_BAND_STEERING_MIN_SNR] = { "band_steering_min_snr", BLOBMSG_TYPE_INT32 },
 	[SCFG_BAND_STEERING_SIGNAL_THRESHOLD] = { "band_steering_signal_threshold", BLOBMSG_TYPE_INT32 },
@@ -191,7 +189,6 @@ void config_set_ssid_configs(struct blob_attr *data)
 		SCFG_SINT(sc, tb, roam_trigger_snr, SCFG_ROAM_TRIGGER_SNR);
 		SCFG_INT(sc, tb, roam_trigger_interval, SCFG_ROAM_TRIGGER_INTERVAL);
 		SCFG_INT(sc, tb, roam_kick_delay, SCFG_ROAM_KICK_DELAY);
-		SCFG_BOOL(sc, tb, band_steering_enabled, SCFG_BAND_STEERING_ENABLED);
 		SCFG_INT(sc, tb, band_steering_interval, SCFG_BAND_STEERING_INTERVAL);
 		SCFG_SINT(sc, tb, band_steering_min_snr, SCFG_BAND_STEERING_MIN_SNR);
 		SCFG_INT(sc, tb, band_steering_signal_threshold, SCFG_BAND_STEERING_SIGNAL_THRESHOLD);
@@ -247,7 +244,6 @@ void config_get_ssid_configs(struct blob_buf *buf)
 		blobmsg_add_u32(buf, "roam_trigger_snr", sc->roam_trigger_snr);
 		blobmsg_add_u32(buf, "roam_trigger_interval", sc->roam_trigger_interval);
 		blobmsg_add_u32(buf, "roam_kick_delay", sc->roam_kick_delay);
-		blobmsg_add_u8(buf, "band_steering_enabled", sc->band_steering_enabled);
 		blobmsg_add_u32(buf, "band_steering_interval", sc->band_steering_interval);
 		blobmsg_add_u32(buf, "band_steering_min_snr", sc->band_steering_min_snr);
 		blobmsg_add_u32(buf, "band_steering_signal_threshold", sc->band_steering_signal_threshold);

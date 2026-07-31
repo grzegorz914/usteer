@@ -84,14 +84,13 @@ static bool usteer_band_steering_has_target_iface(struct usteer_local_node *ln)
 
 void usteer_band_steering_perform_steer(struct usteer_local_node *ln)
 {
-	bool band_steering_enabled = SSID_CFG(ln->node.ssid, band_steering_enabled);
 	uint32_t band_steering_interval = SSID_CFG(ln->node.ssid, band_steering_interval);
 	unsigned int min_count = DIV_ROUND_UP(band_steering_interval, SSID_CFG(ln->node.ssid, local_sta_update));
 	struct sta_info *si;
 	uint32_t disassoc_timer;
 	uint32_t validity_period;
 
-	if (!band_steering_enabled)
+	if (!band_steering_interval)
 		return;
 
 	/* Band-Steering is only available on 2.4 GHz interfaces */
