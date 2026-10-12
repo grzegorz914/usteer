@@ -39,6 +39,16 @@ jobs:
           mkdir -p sdk/package/libs sdk/package/system
           cp -a /tmp/owrt/package/libs/libpcap /tmp/owrt/package/libs/libjson-c /tmp/owrt/package/libs/libubox /tmp/owrt/package/libs/libnl-tiny sdk/package/libs/
           cp -a /tmp/owrt/package/system/ubus sdk/package/system/
+          python3 - <<'PY'
+          import re
+          for p, lua in (('sdk/package/libs/libubox/Makefile', 'libubox-lua'), ('sdk/package/system/ubus/Makefile', 'libubus-lua')):
+              s = open(p).read()
+              s = s.replace('PKG_BUILD_DEPENDS:=lua\n', '')
+              s = s.replace('-DLUAPATH=/usr/lib/lua', '-DBUILD_LUA=OFF \\\n\t-DLUAPATH=/usr/lib/lua', 1)
+              s = s.replace('$(eval $(call BuildPackage,%s))\n' % lua, '')
+              open(p, 'w').write(s)
+              print(p, 'patched, lua refs left:', len(re.findall(r'BuildPackage,[a-z-]*lua', s)))
+          PY
           grep -hE "^PKG_(VERSION|SOURCE_DATE|SOURCE_VERSION|ABI_VERSION)" sdk/package/libs/libubox/Makefile sdk/package/system/ubus/Makefile sdk/package/libs/libnl-tiny/Makefile || true
 
       - name: Build usteer
