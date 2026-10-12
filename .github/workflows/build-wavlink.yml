@@ -1,0 +1,133 @@
+name: build-wavlink
+
+on:
+  push:
+    branches: [ci-apk-25.12.5]
+    paths: ['.github/workflows/build-wavlink.yml']
+
+env:
+  RELEASE: v25.12.5
+  PR: '15179'
+  DEVICE: wavlink_wl-wn572hg3
+
+jobs:
+  firmware:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang flex bison g++ gawk gcc-multilib g++-multilib gettext git libncurses-dev libssl-dev python3-setuptools rsync swig unzip zlib1g-dev file wget zstd python3-pyelftools
+          df -h /
+
+      - name: Fetch OpenWrt ${{ env.RELEASE }} and apply the Wavlink PR
+        run: |
+          git clone --depth 1 --branch $RELEASE https://github.com/openwrt/openwrt.git $GITHUB_WORKSPACE/owrt
+          cd $GITHUB_WORKSPACE/owrt
+          curl -fsSL "https://github.com/openwrt/openwrt/pull/$PR.diff" -o /tmp/pr.diff
+          git apply --check /tmp/pr.diff
+          git apply /tmp/pr.diff
+          git status --short
+
+      - name: Fork usteer and luci-app-usteer
+        run: |
+          cd $GITHUB_WORKSPACE
+          SRC=$(git rev-parse --short=8 origin/master)
+          DAY=$(git show -s --format=%cd --date=format:%Y.%m.%d origin/master)
+          python3 - "$DAY~$SRC" <<'PY'
+          import sys
+          p = 'openwrt/usteer/Makefile'
+          s = open(p).read()
+          old = 'PKG_VERSION:=$(shell git show -s --format=%cd --date=short)'
+          assert old in s
+          open(p, 'w').write(s.replace(old, 'PKG_VERSION:=' + sys.argv[1]))
+          PY
+          grep -n "^PKG_VERSION" openwrt/usteer/Makefile
+          git clone --depth 1 --branch usteer-per-ssid-known-stations --filter=blob:none --sparse https://github.com/grzegorz914/luci.git /tmp/luci-fork
+          git -C /tmp/luci-fork sparse-checkout set applications/luci-app-usteer
+          git -C /tmp/luci-fork log -1 --format='luci fork: %h %s'
+
+      - name: Feeds
+        run: |
+          cd $GITHUB_WORKSPACE/owrt
+          cp feeds.conf.default feeds.conf
+          echo "src-link usteerfork $GITHUB_WORKSPACE/openwrt" >> feeds.conf
+          ./scripts/feeds update -a
+          rm -rf feeds/luci/applications/luci-app-usteer
+          cp -a /tmp/luci-fork/applications/luci-app-usteer feeds/luci/applications/
+          ./scripts/feeds install -p usteerfork usteer
+          ./scripts/feeds install -a
+          ls -l package/feeds/usteerfork/ package/feeds/luci/luci-app-usteer | head
+
+      - name: Configure
+        run: |
+          cd $GITHUB_WORKSPACE/owrt
+          cat > .config <<'CFG'
+          CONFIG_TARGET_ramips=y
+          CONFIG_TARGET_ramips_mt7620=y
+          CONFIG_TARGET_ramips_mt7620_DEVICE_wavlink_wl-wn572hg3=y
+          CONFIG_PACKAGE_wpad-mbedtls=y
+          # CONFIG_PACKAGE_wpad-basic-mbedtls is not set
+          # CONFIG_PACKAGE_dnsmasq is not set
+          # CONFIG_PACKAGE_odhcpd-ipv6only is not set
+          # CONFIG_PACKAGE_ppp is not set
+          # CONFIG_PACKAGE_ppp-mod-pppoe is not set
+          CONFIG_PACKAGE_luci=y
+          CONFIG_PACKAGE_luci-light=y
+          CONFIG_PACKAGE_luci-ssl=y
+          CONFIG_PACKAGE_luci-app-firewall=y
+          CONFIG_PACKAGE_luci-app-package-manager=y
+          CONFIG_PACKAGE_luci-app-attendedsysupgrade=y
+          CONFIG_PACKAGE_luci-app-lldpd=y
+          CONFIG_PACKAGE_luci-app-usteer=y
+          CONFIG_PACKAGE_luci-proto-ipv6=y
+          CONFIG_PACKAGE_luci-proto-ppp=y
+          CONFIG_PACKAGE_luci-i18n-base-pl=y
+          CONFIG_PACKAGE_luci-i18n-firewall-pl=y
+          CONFIG_PACKAGE_luci-i18n-package-manager-pl=y
+          CONFIG_PACKAGE_luci-i18n-attendedsysupgrade-pl=y
+          CONFIG_PACKAGE_luci-i18n-lldpd-pl=y
+          CONFIG_PACKAGE_luci-i18n-usteer-pl=y
+          CONFIG_PACKAGE_lldpd=y
+          CONFIG_PACKAGE_usteer=y
+          CONFIG_PACKAGE_umdns=y
+          CONFIG_PACKAGE_openssh-sftp-server=y
+          CONFIG_PACKAGE_owut=y
+          CONFIG_PACKAGE_swconfig=y
+          CFG
+          sed -i 's/^          //' .config
+          make defconfig
+          grep -E "CONFIG_TARGET_(ramips|DEVICE)|wl-wn572hg3|PACKAGE_(usteer|luci-app-usteer|lldpd|wpad)" .config | head -20
+
+      - name: Download sources
+        run: |
+          cd $GITHUB_WORKSPACE/owrt
+          make -j"$(nproc)" download V=s || make -j1 download V=s
+
+      - name: Build
+        run: |
+          cd $GITHUB_WORKSPACE/owrt
+          make -j"$(nproc)" V=s || make -j1 V=s
+
+      - name: Collect
+        if: always()
+        run: |
+          cd $GITHUB_WORKSPACE/owrt
+          mkdir -p $GITHUB_WORKSPACE/out
+          ls -l bin/targets/ramips/mt7620/ || true
+          cp -v bin/targets/ramips/mt7620/*wn572hg3* $GITHUB_WORKSPACE/out/ 2>/dev/null || true
+          cp -v bin/targets/ramips/mt7620/sha256sums bin/targets/ramips/mt7620/profiles.json $GITHUB_WORKSPACE/out/ 2>/dev/null || true
+          cp .config $GITHUB_WORKSPACE/out/build.config
+          ls -l $GITHUB_WORKSPACE/out
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wavlink-wl-wn572hg3-${{ env.RELEASE }}
+          path: out/*

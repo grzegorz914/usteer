@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches: [ci-apk-25.12.5]
+    paths: ['.github/workflows/build-apk.yml', 'openwrt/**']
 
 env:
   RELEASE: 25.12.5
