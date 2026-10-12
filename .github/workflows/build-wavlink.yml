@@ -6,9 +6,8 @@ on:
     paths: ['.github/workflows/build-wavlink.yml']
 
 env:
-  RELEASE: v25.12.5
-  PR: '15179'
-  DEVICE: wavlink_wl-wn572hg3
+  WL_TAG: v25.12.5
+  WL_PR: '15179'
 
 jobs:
   firmware:
@@ -26,11 +25,11 @@ jobs:
           sudo apt-get install -y build-essential clang flex bison g++ gawk gcc-multilib g++-multilib gettext git libncurses-dev libssl-dev python3-setuptools rsync swig unzip zlib1g-dev file wget zstd python3-pyelftools
           df -h /
 
-      - name: Fetch OpenWrt ${{ env.RELEASE }} and apply the Wavlink PR
+      - name: Fetch OpenWrt and apply the Wavlink PR
         run: |
-          git clone --depth 1 --branch $RELEASE https://github.com/openwrt/openwrt.git $GITHUB_WORKSPACE/owrt
+          git clone --depth 1 --branch $WL_TAG https://github.com/openwrt/openwrt.git $GITHUB_WORKSPACE/owrt
           cd $GITHUB_WORKSPACE/owrt
-          curl -fsSL "https://github.com/openwrt/openwrt/pull/$PR.diff" -o /tmp/pr.diff
+          curl -fsSL "https://github.com/openwrt/openwrt/pull/$WL_PR.diff" -o /tmp/pr.diff
           git apply --check /tmp/pr.diff
           git apply /tmp/pr.diff
           git status --short
@@ -129,5 +128,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: wavlink-wl-wn572hg3-${{ env.RELEASE }}
+          name: wavlink-wl-wn572hg3-${{ env.WL_TAG }}
           path: out/*
