@@ -61,7 +61,10 @@ jobs:
           make defconfig
           make package/libjson-c/compile package/libubox/compile package/libnl-tiny/compile package/ubus/compile package/libpcap/compile -j"$(nproc)" V=s
           ls staging_dir/target-*/usr/include/libubox/avl.h staging_dir/target-*/usr/include/pcap/pcap.h
-          make package/usteer/compile -j"$(nproc)" V=s
+          SRC=$(git -C "$GITHUB_WORKSPACE" rev-parse --short=8 origin/master)
+          DAY=$(git -C "$GITHUB_WORKSPACE" show -s --format=%cd --date=format:%Y.%m.%d origin/master)
+          echo "usteer version: $DAY~$SRC (source origin/master)"
+          make package/usteer/compile PKG_VERSION="$DAY~$SRC" -j"$(nproc)" V=s
 
       - name: Collect packages
         run: |
