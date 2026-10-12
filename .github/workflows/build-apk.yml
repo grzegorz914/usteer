@@ -41,6 +41,8 @@ jobs:
           ./scripts/feeds install libpcap
           ./scripts/feeds install -p usteer usteer
           make defconfig
+          make package/libpcap/compile -j"$(nproc)" V=s
+          ls staging_dir/target-*/usr/include/pcap/pcap.h
           make package/usteer/compile -j"$(nproc)" V=s
 
       - name: Collect packages
