@@ -38,8 +38,10 @@ jobs:
           cp feeds.conf.default feeds.conf
           echo "src-link usteer $GITHUB_WORKSPACE/openwrt" >> feeds.conf
           ./scripts/feeds update usteer packages
-          ./scripts/feeds install libpcap
+          ./scripts/feeds install -a -p packages > /dev/null
           ./scripts/feeds install -p usteer usteer
+          echo "--- pcap w feedach"; find feeds package -maxdepth 3 -iname '*pcap*' 2>/dev/null | head
+          test -e package/feeds/packages/libpcap || { echo "libpcap NIE zainstalowany"; exit 1; }
           make defconfig
           make package/libpcap/compile -j"$(nproc)" V=s
           ls staging_dir/target-*/usr/include/pcap/pcap.h
