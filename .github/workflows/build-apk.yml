@@ -35,10 +35,10 @@ jobs:
       - name: Fetch libpcap and json-c package definitions (not shipped in the SDK)
         run: |
           git clone --depth 1 --branch v$RELEASE --filter=blob:none --sparse https://github.com/openwrt/openwrt.git /tmp/owrt
-          git -C /tmp/owrt sparse-checkout set package/libs/libpcap package/libs/json-c
+          git -C /tmp/owrt sparse-checkout set package/libs/libpcap package/libs/libjson-c
           mkdir -p sdk/package/libs
-          cp -a /tmp/owrt/package/libs/libpcap /tmp/owrt/package/libs/json-c sdk/package/libs/
-          ls -l sdk/package/libs/libpcap sdk/package/libs/json-c
+          cp -a /tmp/owrt/package/libs/libpcap /tmp/owrt/package/libs/libjson-c sdk/package/libs/
+          ls -l sdk/package/libs/libpcap sdk/package/libs/libjson-c
 
       - name: Build usteer
         run: |
@@ -48,7 +48,7 @@ jobs:
           ./scripts/feeds update usteer
           ./scripts/feeds install -p usteer usteer
           make defconfig
-          make package/json-c/compile package/libpcap/compile -j"$(nproc)" V=s
+          make package/libjson-c/compile package/libpcap/compile -j"$(nproc)" V=s
           ls staging_dir/target-*/usr/include/json-c/json.h
           ls staging_dir/target-*/usr/include/pcap/pcap.h
           make package/usteer/compile -j"$(nproc)" V=s
