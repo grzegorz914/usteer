@@ -64,7 +64,16 @@ jobs:
           SRC=$(git -C "$GITHUB_WORKSPACE" rev-parse --short=8 origin/master)
           DAY=$(git -C "$GITHUB_WORKSPACE" show -s --format=%cd --date=format:%Y.%m.%d origin/master)
           echo "usteer version: $DAY~$SRC (source origin/master)"
-          make package/usteer/compile PKG_VERSION="$DAY~$SRC" -j"$(nproc)" V=s
+          python3 - "$DAY~$SRC" <<'PY'
+          import sys
+          p = '../openwrt/usteer/Makefile'
+          s = open(p).read()
+          old = 'PKG_VERSION:=$(shell git show -s --format=%cd --date=short)'
+          assert old in s
+          open(p, 'w').write(s.replace(old, 'PKG_VERSION:=' + sys.argv[1]))
+          PY
+          grep -n "^PKG_VERSION" ../openwrt/usteer/Makefile
+          make package/usteer/compile -j"$(nproc)" V=s
 
       - name: Collect packages
         run: |
