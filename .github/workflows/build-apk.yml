@@ -32,13 +32,14 @@ jobs:
           mkdir sdk
           tar --zstd -xf "$FILE" -C sdk --strip-components=1
 
-      - name: Fetch libpcap and json-c package definitions (not shipped in the SDK)
+      - name: Fetch base library package definitions (not shipped in the SDK)
         run: |
           git clone --depth 1 --branch v$RELEASE --filter=blob:none --sparse https://github.com/openwrt/openwrt.git /tmp/owrt
-          git -C /tmp/owrt sparse-checkout set package/libs/libpcap package/libs/libjson-c
-          mkdir -p sdk/package/libs
-          cp -a /tmp/owrt/package/libs/libpcap /tmp/owrt/package/libs/libjson-c sdk/package/libs/
-          ls -l sdk/package/libs/libpcap sdk/package/libs/libjson-c
+          git -C /tmp/owrt sparse-checkout set package/libs/libpcap package/libs/libjson-c package/libs/libubox package/libs/libnl-tiny package/system/ubus
+          mkdir -p sdk/package/libs sdk/package/system
+          cp -a /tmp/owrt/package/libs/libpcap /tmp/owrt/package/libs/libjson-c /tmp/owrt/package/libs/libubox /tmp/owrt/package/libs/libnl-tiny sdk/package/libs/
+          cp -a /tmp/owrt/package/system/ubus sdk/package/system/
+          grep -hE "^PKG_(VERSION|SOURCE_DATE|SOURCE_VERSION|ABI_VERSION)" sdk/package/libs/libubox/Makefile sdk/package/system/ubus/Makefile sdk/package/libs/libnl-tiny/Makefile || true
 
       - name: Build usteer
         run: |
@@ -48,9 +49,8 @@ jobs:
           ./scripts/feeds update usteer
           ./scripts/feeds install -p usteer usteer
           make defconfig
-          make package/libjson-c/compile package/libpcap/compile -j"$(nproc)" V=s
-          ls staging_dir/target-*/usr/include/json-c/json.h
-          ls staging_dir/target-*/usr/include/pcap/pcap.h
+          make package/libjson-c/compile package/libubox/compile package/libnl-tiny/compile package/ubus/compile package/libpcap/compile -j"$(nproc)" V=s
+          ls staging_dir/target-*/usr/include/libubox/avl.h staging_dir/target-*/usr/include/pcap/pcap.h
           make package/usteer/compile -j"$(nproc)" V=s
 
       - name: Collect packages
