@@ -120,6 +120,13 @@ jobs:
           ./scripts/feeds install luci-base luci-app-usteer
           rm -rf feeds/luci/applications/luci-app-usteer
           cp -a /tmp/luci-fork/applications/luci-app-usteer feeds/luci/applications/
+          # noarch app: luci-base and usteer already exist on the devices, so do not build them here
+          python3 - <<'PY'
+          p = 'feeds/luci/applications/luci-app-usteer/Makefile'
+          s = open(p).read()
+          assert 'LUCI_DEPENDS:=+luci-base +usteer' in s
+          open(p, 'w').write(s.replace('LUCI_DEPENDS:=+luci-base +usteer', 'LUCI_DEPENDS:='))
+          PY
           make defconfig
           make package/luci-base/host/compile -j"$(nproc)" V=s
           make package/luci-app-usteer/compile -j"$(nproc)" V=s
