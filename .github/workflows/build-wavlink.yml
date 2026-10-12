@@ -36,9 +36,12 @@ jobs:
 
       - name: Fork usteer and luci-app-usteer
         run: |
-          cd $GITHUB_WORKSPACE
-          SRC=$(git rev-parse --short=8 origin/master)
-          DAY=$(git show -s --format=%cd --date=format:%Y.%m.%d origin/master)
+          # A separate clone of master, outside the OpenWrt tree: the package hashes its whole source tree
+          git clone --branch master "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" /tmp/usteer-src
+          cd /tmp/usteer-src
+          SRC=$(git rev-parse --short=8 HEAD)
+          DAY=$(git show -s --format=%cd --date=format:%Y.%m.%d HEAD)
+          echo "usteer source: $SRC $DAY"
           python3 - "$DAY~$SRC" <<'PY'
           import sys
           p = 'openwrt/usteer/Makefile'
@@ -47,6 +50,7 @@ jobs:
           assert old in s
           open(p, 'w').write(s.replace(old, 'PKG_VERSION:=' + sys.argv[1]))
           PY
+          git -c user.name=ci -c user.email=ci@example.com commit -qam "pin package version"
           grep -n "^PKG_VERSION" openwrt/usteer/Makefile
           git clone --depth 1 --branch usteer-per-ssid-known-stations --filter=blob:none --sparse https://github.com/grzegorz914/luci.git /tmp/luci-fork
           git -C /tmp/luci-fork sparse-checkout set applications/luci-app-usteer
@@ -56,7 +60,7 @@ jobs:
         run: |
           cd $GITHUB_WORKSPACE/owrt
           cp feeds.conf.default feeds.conf
-          echo "src-link usteerfork $GITHUB_WORKSPACE/openwrt" >> feeds.conf
+          echo "src-link usteerfork /tmp/usteer-src/openwrt" >> feeds.conf
           ./scripts/feeds update -a
           rm -rf feeds/luci/applications/luci-app-usteer
           cp -a /tmp/luci-fork/applications/luci-app-usteer feeds/luci/applications/
