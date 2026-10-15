@@ -68,6 +68,29 @@ jobs:
           ./scripts/feeds install -a
           ls -l package/feeds/usteerfork/ package/feeds/luci/luci-app-usteer | head
 
+      - name: Extra files for the image
+        run: |
+          cd $GITHUB_WORKSPACE/owrt
+          mkdir -p files/etc/hotplug.d/iface
+          cat > files/etc/hotplug.d/iface/99-netconsole <<'HOOK'
+          #!/bin/sh
+          # Kernel messages (oops, lockups, driver errors) go to the syslog server on the Mac mini once lan is up.
+          # kmodloader ignores module parameters, so the module is loaded with insmod
+          [ "$ACTION" = "ifup" ] && [ "$INTERFACE" = "lan" ] || exit 0
+
+          KO="/lib/modules/$(uname -r)/netconsole.ko"
+          [ -f "$KO" ] || exit 0
+
+          IP="$(ip -4 addr show br-lan 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1 | head -n1)"
+          [ -n "$IP" ] || exit 0
+
+          rmmod netconsole 2>/dev/null
+          insmod "$KO" "netconsole=6665@$IP/br-lan,5514@192.168.1.20/" && logger -t netconsole "kernel messages to 192.168.1.20:5514 from $IP"
+          HOOK
+          sed -i 's/^          //' files/etc/hotplug.d/iface/99-netconsole
+          chmod 755 files/etc/hotplug.d/iface/99-netconsole
+          cat files/etc/hotplug.d/iface/99-netconsole | head -5
+
       - name: Configure
         run: |
           cd $GITHUB_WORKSPACE/owrt
@@ -91,12 +114,8 @@ jobs:
           CONFIG_PACKAGE_luci-app-usteer=y
           CONFIG_PACKAGE_luci-proto-ipv6=y
           CONFIG_PACKAGE_luci-proto-ppp=y
-          CONFIG_PACKAGE_luci-i18n-base-pl=y
-          CONFIG_PACKAGE_luci-i18n-firewall-pl=y
-          CONFIG_PACKAGE_luci-i18n-package-manager-pl=y
-          CONFIG_PACKAGE_luci-i18n-attendedsysupgrade-pl=y
-          CONFIG_PACKAGE_luci-i18n-lldpd-pl=y
-          CONFIG_PACKAGE_luci-i18n-usteer-pl=y
+          CONFIG_LUCI_LANG_pl=y
+          CONFIG_PACKAGE_kmod-netconsole=y
           CONFIG_PACKAGE_lldpd=y
           CONFIG_PACKAGE_usteer=y
           CONFIG_PACKAGE_umdns=y
