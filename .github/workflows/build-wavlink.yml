@@ -76,6 +76,8 @@ jobs:
           #!/bin/sh
           # Kernel messages (oops, lockups, driver errors) go to the syslog server on the Mac mini once lan is up.
           # kmodloader ignores module parameters, so the module is loaded with insmod
+          # The target MAC is set on purpose: a broadcast target is flooded by the bridge to the Wi-Fi interfaces, which led to
+          # a dead loop in the Wi-Fi transmit path (and resets of the ath10k access points)
           [ "$ACTION" = "ifup" ] && [ "$INTERFACE" = "lan" ] || exit 0
 
           KO="/lib/modules/$(uname -r)/netconsole.ko"
@@ -85,7 +87,7 @@ jobs:
           [ -n "$IP" ] || exit 0
 
           rmmod netconsole 2>/dev/null
-          insmod "$KO" "netconsole=6665@$IP/br-lan,5514@192.168.1.20/" && logger -t netconsole "kernel messages to 192.168.1.20:5514 from $IP"
+          insmod "$KO" "netconsole=6665@$IP/br-lan,5514@192.168.1.20/14:98:77:80:7a:bc" && logger -t netconsole "kernel messages to 192.168.1.20:5514 from $IP"
           HOOK
           sed -i 's/^          //' files/etc/hotplug.d/iface/99-netconsole
           chmod 755 files/etc/hotplug.d/iface/99-netconsole
