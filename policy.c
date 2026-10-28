@@ -538,6 +538,10 @@ bool usteer_policy_can_perform_roam(struct sta_info *si)
 	if (si->connected != STA_CONNECTED)
 		return false;
 
+	/* The node SSID may not have been known yet when the station info was
+	 * created, so evaluate the per-MAC aggressiveness again here. */
+	usteer_sta_update_aggressiveness(si);
+
 	/* Only trigger for STA with active roaming */
 	if (!si->aggressiveness)
 		return false;

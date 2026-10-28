@@ -78,7 +78,7 @@ usteer_sta_info_timeout(struct usteer_timeout_queue *q, struct usteer_timeout *t
 	usteer_sta_info_del(si);
 }
 
-static void
+void
 usteer_sta_update_aggressiveness(struct sta_info *si)
 {
 	struct blob_attr *cur;
