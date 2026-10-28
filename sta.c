@@ -103,6 +103,21 @@ usteer_sta_update_aggressiveness(struct sta_info *si)
 	}
 }
 
+/* Station infos only evaluate their aggressiveness when they are created.
+ * Stations that were already known when a new config arrives (or that were
+ * created before the first config was loaded) would keep the old value,
+ * so re-evaluate all of them after every config update. */
+void
+usteer_sta_update_all_aggressiveness(void)
+{
+	struct sta_info *si;
+	struct sta *sta;
+
+	avl_for_each_element(&stations, sta, avl)
+		list_for_each_entry(si, &sta->nodes, list)
+			usteer_sta_update_aggressiveness(si);
+}
+
 struct sta_info *
 usteer_sta_info_get(struct sta *sta, struct usteer_node *node, bool *create)
 {

@@ -321,6 +321,7 @@ usteer_ubus_set_config(struct ubus_context *ctx, struct ubus_object *obj,
 		}
 	}
 
+	usteer_sta_update_all_aggressiveness();
 	usteer_interface_init();
 
 	return 0;
