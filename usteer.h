@@ -380,6 +380,8 @@ int usteer_ubus_bss_transition_request(struct sta_info *si,
 
 struct sta *usteer_sta_get(const uint8_t *addr, bool create);
 struct sta_info *usteer_sta_info_get(struct sta *sta, struct usteer_node *node, bool *create);
+void usteer_sta_update_aggressiveness(struct sta_info *si);
+void usteer_sta_update_all_aggressiveness(void);
 
 bool usteer_sta_supports_beacon_measurement_mode(struct sta_info *si, enum usteer_beacon_measurement_mode mode);
 bool usteer_sta_supports_link_measurement(struct sta_info *si);
